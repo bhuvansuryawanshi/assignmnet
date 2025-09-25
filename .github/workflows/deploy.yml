@@ -58,10 +58,22 @@ jobs:
           # Stop and remove existing container if running
           docker stop python-app || true
           docker rm -f python-app || true
+
+          # Prune unused containers & networks
           docker container prune -f
-          
-          # Kill any process using port 5000
-          # sudo lsof -t -i:5000 | xargs -r kill -9
+          docker network prune -f
+
+          # Kill any lingering process holding port 5000
+          if sudo lsof -t -i:5000; then
+            echo "Port 5000 is busy, killing process..."
+            sudo lsof -t -i:5000 | xargs -r sudo kill -9
+          fi
+
+          # Double check port is free
+          if sudo lsof -i:5000; then
+            echo "ERROR: Port 5000 still in use!"
+            exit 1
+          fi
 
           # Pull the latest image
           docker pull ${{ secrets.DOCKER_USERNAME }}/python-app:latest
