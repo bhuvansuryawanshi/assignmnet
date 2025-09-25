@@ -58,9 +58,10 @@ jobs:
           # Stop and remove existing container if running
           docker stop python-app || true
           docker rm -f python-app || true
+          docker container prune -f
           
           # Kill any process using port 5000
-          sudo lsof -t -i:5000 | xargs -r kill -9
+          # sudo lsof -t -i:5000 | xargs -r kill -9
 
           # Pull the latest image
           docker pull ${{ secrets.DOCKER_USERNAME }}/python-app:latest
