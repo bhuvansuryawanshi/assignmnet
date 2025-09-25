@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PostgreSQL CRUD Web App</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table, th, td { border: 1px solid black; border-collapse: collapse; padding: 8px; }
+        input { padding: 5px; margin: 5px; }
+        button { padding: 5px 10px; margin: 5px; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>Users</h1>
+
+    <h3>Add User</h3>
+    <form method="POST" action="/add">
+        Name: <input type="text" name="name" required>
+        Email: <input type="email" name="email" required>
+        <button type="submit">Add</button>
+    </form>
+
+    <h3>Existing Users</h3>
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Actions</th>
+        </tr>
+        {% for user in users %}
+        <tr>
+            <td>{{ user[0] }}</td>
+            <td>
+                <form method="POST" action="/update/{{ user[0] }}">
+                    <input type="text" name="name" value="{{ user[1] }}" required>
+            </td>
+            <td>
+                    <input type="email" name="email" value="{{ user[2] }}" required>
+            </td>
+            <td>
+                    <button type="submit">Update</button>
+                    <a href="/delete/{{ user[0] }}" onclick="return confirm('Are you sure?')">Delete</a>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
