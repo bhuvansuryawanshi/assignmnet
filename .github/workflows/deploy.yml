@@ -2,7 +2,9 @@ name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
+
+  workflow_dispatch:
 
 jobs:
   build-and-push:
@@ -39,3 +41,46 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: ${{ secrets.SSH_PORT }}
+        script: |
+          # Stop and remove existing container if running
+          docker stop flask-rds-app || true
+          docker rm flask-rds-app || true
+          
+          # Pull the latest image
+          docker pull ${{ secrets.DOCKER_USERNAME }}/test-python:latest
+          
+          # Run the new container with environment variables
+          docker run -d -p 5000:5000 \
+            --name flask-rds-app \
+            -e DB_HOST=${{ secrets.DB_HOST }} \
+            -e DB_NAME=${{ secrets.DB_NAME }} \
+            -e DB_USER=${{ secrets.DB_USER }} \
+            -e DB_PASS=${{ secrets.DB_PASS }} \
+            ${{ secrets.DOCKER_USERNAME }}/test-python:latest
+          
+          # Wait a moment for container to start
+          sleep 5
+          
+          # Check if container is running
+          if docker ps | grep -q flask-rds-app; then
+            echo "Container deployed successfully!"
+            echo "Application URL: http://${{ secrets.SSH_HOST }}:5000"
+            echo "Click here to access: http://${{ secrets.SSH_HOST }}:5000"
+          else
+            echo "Container failed to start"
+            docker logs flask-rds-app
+            exit 1
+          fi
