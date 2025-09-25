@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Deploy python app to server
 
 on:
   push:
@@ -9,6 +9,11 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    env:
+      DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+      SSH_PORT: ${{ vars.SSH_PORT }}
+      DB_NAME: ${{ vars.DB_NAME }}
+      SSH_HOST: ${{ vars.SSH_HOST }}
     
     steps:
     - name: Checkout code
@@ -20,14 +25,14 @@ jobs:
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKER_USERNAME }}
+        username: ${{ env.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
         
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ secrets.DOCKER_USERNAME }}/python-app
+        images: ${{ env.DOCKER_USERNAME }}/python-app
         tags: |
           type=raw,value=latest
           
@@ -45,47 +50,36 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    env:
+      DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+      SSH_PORT: ${{ vars.SSH_PORT }}
+      DB_NAME: ${{ vars.DB_NAME }}
+      SSH_HOST: ${{ vars.SSH_HOST }}
     
     steps:
     - name: Deploy to server
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.SSH_HOST }}
+        host: ${{ env.SSH_HOST }}
         username: ${{ secrets.SSH_USERNAME }}
         key: ${{ secrets.PRIVATE_KEY }}
-        port: ${{ secrets.SSH_PORT }}
+        port: ${{ env.SSH_PORT }}
         script: |
           # Stop and remove existing container if running
           docker stop python-app || true
-          docker rm -f python-app || true
-
-          # Prune unused containers & networks
-          docker container prune -f
-          docker network prune -f
-
-          # Kill any lingering process holding port 5000
-          if sudo lsof -t -i:5000; then
-            echo "Port 5000 is busy, killing process..."
-            sudo lsof -t -i:5000 | xargs -r sudo kill -9
-          fi
-
-          # Double check port is free
-          if sudo lsof -i:5000; then
-            echo "ERROR: Port 5000 still in use!"
-            exit 1
-          fi
-
+          docker rm python-app || true
+          
           # Pull the latest image
-          docker pull ${{ secrets.DOCKER_USERNAME }}/python-app:latest
+          docker pull ${{ env.DOCKER_USERNAME }}/test-python:latest
           
           # Run the new container with environment variables
           docker run -d -p 5000:5000 \
             --name python-app \
-            -e DB_HOST=${{ secrets.DB_HOST }} \
-            -e DB_NAME=${{ secrets.DB_NAME }} \
-            -e DB_USER=${{ secrets.DB_USER }} \
+            -e DB_HOST=${{ env.DB_HOST }} \
+            -e DB_NAME=${{ env.DB_NAME }} \
+            -e DB_USER=${{ env.DB_USER }} \
             -e DB_PASS=${{ secrets.DB_PASS }} \
-            ${{ secrets.DOCKER_USERNAME }}/python-app:latest
+            ${{ env.DOCKER_USERNAME }}/python-app:latest
           
           # Wait a moment for container to start
           sleep 5
@@ -93,8 +87,8 @@ jobs:
           # Check if container is running
           if docker ps | grep -q python-app; then
             echo "Container deployed successfully!"
-            echo "Application URL: http://${{ secrets.SSH_HOST }}:5000"
-            echo "Click here to access: http://${{ secrets.SSH_HOST }}:5000"
+            echo "Application URL: http://${{ env.SSH_HOST }}:5000"
+            echo "Click here to access: http://${{ env.SSH_HOST }}:5000"
           else
             echo "Container failed to start"
             docker logs python-app
