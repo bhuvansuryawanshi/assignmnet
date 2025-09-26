@@ -27,7 +27,7 @@ jobs:
         context: .
         push: true
         tags: ${{ env.DOCKER_USERNAME }}/python-app:latest
-        platforms: linux/amd64,linux/arm64   
+        platforms: linux/amd64   # ✅ works on Ubuntu EC2
         
   deploy:
     needs: build-and-push
