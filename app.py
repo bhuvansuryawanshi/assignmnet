@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-# ------------------- Database Connection -------------------
+# Database Connection
 def get_connection():
     return psycopg2.connect(
         host=os.environ.get("DB_HOST"),
@@ -13,7 +13,7 @@ def get_connection():
         password=os.environ.get("DB_PASS")
     )
 
-# ------------------- Routes -------------------
+#Routes
 
 @app.route('/')
 def index():
