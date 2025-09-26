@@ -3,7 +3,6 @@ name: Deploy python app to server
 on:
   push:
     branches: [ main ]
-
   workflow_dispatch:
 
 jobs:
@@ -11,51 +10,36 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
-      SSH_PORT: ${{ vars.SSH_PORT }}
-      DB_NAME: ${{ vars.DB_NAME }}
-      SSH_HOST: ${{ vars.SSH_HOST }}
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-      
+
     - name: Log in to Docker Hub
       uses: docker/login-action@v3
       with:
         username: ${{ env.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.DOCKER_USERNAME }}/python-app
-        tags: |
-          type=raw,value=latest
-          
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
-        platforms: linux/amd64,linux/arm64
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
+        tags: ${{ env.DOCKER_USERNAME }}/python-app:latest
+        platforms: linux/amd64,linux/arm64   
+        
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     env:
       DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
       SSH_PORT: ${{ vars.SSH_PORT }}
-      DB_NAME: ${{ vars.DB_NAME }}
       SSH_HOST: ${{ vars.SSH_HOST }}
-    
+      DB_NAME: ${{ vars.DB_NAME }}
+      DB_USER: ${{ vars.DB_USER }}
+      DB_HOST: ${{ vars.DB_HOST }}
+
     steps:
     - name: Deploy to server
       uses: appleboy/ssh-action@v1.0.3
@@ -65,14 +49,11 @@ jobs:
         key: ${{ secrets.PRIVATE_KEY }}
         port: ${{ env.SSH_PORT }}
         script: |
-          # Stop and remove existing container if running
           docker stop python-app || true
           docker rm python-app || true
-          
-          # Pull the latest image
-          docker pull ${{ env.DOCKER_USERNAME }}/test-python:latest
-          
-          # Run the new container with environment variables
+
+          docker pull ${{ env.DOCKER_USERNAME }}/python-app:latest
+
           docker run -d -p 5000:5000 \
             --name python-app \
             -e DB_HOST=${{ env.DB_HOST }} \
@@ -81,14 +62,10 @@ jobs:
             -e DB_PASS=${{ secrets.DB_PASS }} \
             ${{ env.DOCKER_USERNAME }}/python-app:latest
           
-          # Wait a moment for container to start
           sleep 5
-          
-          # Check if container is running
           if docker ps | grep -q python-app; then
             echo "Container deployed successfully!"
-            echo "Application URL: http://${{ env.SSH_HOST }}:5000"
-            echo "Click here to access: http://${{ env.SSH_HOST }}:5000"
+            echo "http://${{ env.SSH_HOST }}:5000"
           else
             echo "Container failed to start"
             docker logs python-app
