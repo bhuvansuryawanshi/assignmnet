@@ -30,52 +30,50 @@ jobs:
         platforms: linux/amd64 
         
   deploy:
-  needs: build-and-push
-  runs-on: ubuntu-latest
-  env:
-    DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
-    SSH_PORT: ${{ vars.SSH_PORT }}
-    SSH_HOST: ${{ vars.SSH_HOST }}
-    DB_NAME: ${{ vars.DB_NAME }}
-    DB_USER: ${{ vars.DB_USER }}
-    DB_HOST: ${{ vars.DB_HOST }}
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    env:
+      DOCKER_USERNAME: ${{ vars.DOCKER_USERNAME }}
+      SSH_PORT: ${{ vars.SSH_PORT }}
+      SSH_HOST: ${{ vars.SSH_HOST }}
+      DB_NAME: ${{ vars.DB_NAME }}
+      DB_USER: ${{ vars.DB_USER }}
+      DB_HOST: ${{ vars.DB_HOST }}
 
-  steps:
-  - name: Deploy to server
-    uses: appleboy/ssh-action@v1.0.3
-    with:
-      host: ${{ env.SSH_HOST }}
-      username: ${{ secrets.SSH_USERNAME }}
-      key: ${{ secrets.PRIVATE_KEY }}
-      port: ${{ env.SSH_PORT }}
-      script: |
-        # Cleaning up old containers using port 5000
-        docker ps -q --filter "publish=5000" | xargs -r docker stop
-        docker ps -aq --filter "publish=5000" | xargs -r docker rm
+    steps:
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ env.SSH_HOST }}
+        username: ${{ secrets.SSH_USERNAME }}
+        key: ${{ secrets.PRIVATE_KEY }}
+        port: ${{ env.SSH_PORT }}
+        script: |
 
-        # Stopping and removing old python-app container
-        docker stop python-app || true
-        docker rm python-app || true
+          # Cleaning up old containers using port 5000
+          docker ps -q --filter "publish=5000" | xargs -r docker stop
+          docker ps -aq --filter "publish=5000" | xargs -r docker rm
 
-        # Pulling latest Docker image
-        docker pull ${{ env.DOCKER_USERNAME }}/python-app:latest
+          # Stopping and removing old python-app container
+          docker stop python-app || true
+          docker rm python-app || true
 
-        # Running new container
-        docker run -d -p 5000:5000 \
-          --name python-app \
-          -e DB_HOST=${{ env.DB_HOST }} \
-          -e DB_NAME=${{ env.DB_NAME }} \
-          -e DB_USER=${{ env.DB_USER }} \
-          -e DB_PASS=${{ secrets.DB_PASS }} \
-          ${{ env.DOCKER_USERNAME }}/python-app:latest
+          docker pull ${{ env.DOCKER_USERNAME }}/python-app:latest
 
-        sleep 5
-        if docker ps | grep -q python-app; then
-          echo "Container deployed successfully!"
-          echo "http://${{ env.SSH_HOST }}:5000"
-        else
-          echo "Container failed to start"
-          docker logs python-app
-          exit 1
-        fi
-
+          docker run -d -p 5000:5000 \
+            --name python-app \
+            -e DB_HOST=${{ env.DB_HOST }} \
+            -e DB_NAME=${{ env.DB_NAME }} \
+            -e DB_USER=${{ env.DB_USER }} \
+            -e DB_PASS=${{ secrets.DB_PASS }} \
+            ${{ env.DOCKER_USERNAME }}/python-app:latest
+          
+          sleep 5
+          if docker ps | grep -q python-app; then
+            echo "Container deployed successfully!"
+            echo "http://${{ env.SSH_HOST }}:5000"
+          else
+            echo "Container failed to start"
+            docker logs python-app
+            exit 1
+          fi
